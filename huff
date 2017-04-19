@@ -1,0 +1,245 @@
+// KELSON ANDREW CS435 5585 Huffman MP
+
+import java.io.*;
+import java.util.*;
+
+public class Huffman_5585 
+{
+	private int freq[]; 
+	private HuffTree table[]; 
+	
+	public void encode(String inputFile, String outputFile) throws IOException
+	{
+		buildFreqTable(inputFile); 
+		HuffTree root = buildHuffmanTree(); 
+
+		FileInputStream fi = new FileInputStream(inputFile);
+		BufferedInputStream in = new BufferedInputStream(fi);
+		
+		FileOutputStream fo = new FileOutputStream(outputFile);
+		BufferedOutputStream bo = new BufferedOutputStream(fo);
+		DataOutputStream out = new DataOutputStream(bo);
+
+		HuffTree temp;
+		int intRead;
+		byte data[] = new byte[1000]; 
+		int top; 
+		int nextByte = 0;
+		int bitNum = 7;
+
+		for (int i = 0; i < 256; i++) 
+			out.writeInt(freq[i]);
+
+		while ((intRead = in.read()) != -1) 
+		{
+			if (table[intRead] != null) 
+			{
+				temp = table[intRead];
+				top = 0;
+				while (temp.parent != null) 
+				{
+					if (temp.parent.left == temp) data[top++] = 0;
+					 else data[top++] = 1;
+					temp = temp.parent;
+				}
+				for (int i = top; i > 0; i--) 
+				{
+					if (data[--top] == 1)
+					 nextByte |= 1 << bitNum;
+					if (bitNum-- == 0) 
+					{
+						bitNum = 7;
+						out.write(nextByte);
+						nextByte = 0;
+					}
+				}
+			} 
+			else 
+			{
+				System.out.println("Error"); 
+				System.exit(2);
+			}
+		};
+		
+		temp = table[256];
+		top = 0;
+		while (temp.parent != null) 
+		{
+			if (temp.parent.left == temp) data[top++] = 0;
+			 else data[top++] = 1;
+			temp = temp.parent;
+		}
+		for (int i = top; i > 0; i--) 
+		{
+			if (data[--top] == 1)
+			 nextByte |= 1 << bitNum;
+			if (bitNum-- == 0) 
+			{
+				bitNum = 7;
+				out.write(nextByte);
+				nextByte = 0;
+			}
+		}
+		in.close();
+		if (bitNum < 7) out.write(nextByte);
+		out.close();
+	}
+	
+	public void decode(String inFile) throws IOException 
+	{
+		FileInputStream fi = new FileInputStream(inFile);
+		BufferedInputStream bi = new BufferedInputStream(fi);
+		DataInputStream in = new DataInputStream(bi);
+		
+		String tmpFile = inFile + ".tmp";
+		FileOutputStream fo = new FileOutputStream(tmpFile);
+		BufferedOutputStream out = new BufferedOutputStream(fo);		
+
+		for (int i = 0; i < 256; i++) 
+			freq[i] = in.readInt();
+		
+		freq[256] = 1;
+		HuffTree root = buildHuffmanTree();
+
+		HuffTree iterator = root;
+		int bitNum = 7;
+		int nextByte;
+
+		while ((nextByte = in.read()) != -1) 
+		{
+			while (true) 
+			{
+				if (iterator.left != null) 
+				{
+					if ((1 << bitNum & (byte) nextByte) == 0) 
+						iterator = iterator.left;
+					 else 
+						 iterator = iterator.right;
+					if (bitNum-- == 0) 
+					{
+						bitNum = 7; 
+						break;
+					}
+				} 
+				else 
+				{ 
+					if (iterator == table[256]) 
+						break;
+					out.write(iterator.val);
+					iterator = root;
+				}
+			}
+		}
+		
+		in.close();
+		out.close();
+	}
+
+	private HuffTree buildHuffmanTree() 
+	{
+		LinkedList list = new LinkedList();
+
+		for (int i = 0; i < 257; i++) 
+		{
+			if (freq[i] > 0) 
+			{
+				int j;
+				for (j = 0; j < list.size(); j++)
+					if (((HuffTree) list.get(j)).weight >= freq[i]) 
+						break;
+				list.add(j, table[i] = new HuffTree(i, freq[i], null, null, null));
+			}
+		}
+
+		while (list.size() > 1) 
+		{
+			HuffTree left = (HuffTree) list.removeFirst();
+			HuffTree right = (HuffTree) list.removeFirst();
+			HuffTree tmpTree = new HuffTree(0, left.weight + right.weight, left, right, null);
+			left.parent = tmpTree;
+			right.parent = tmpTree;
+			int i = 0;
+			for (; i < list.size(); i++)
+				if (((HuffTree) list.get(i)).weight >= tmpTree.weight) 
+					break;
+			list.add(i, tmpTree);
+		}
+
+		return (HuffTree) list.removeFirst();
+	}
+
+	private void buildFreqTable(String inputFile) throws IOException
+	{
+		FileInputStream fi = new FileInputStream(inputFile);
+		BufferedInputStream in = new BufferedInputStream(fi);
+
+		int ch;
+		while ((ch = in.read()) != -1) 
+			freq[ch]++;
+
+		freq[256] = 1;
+		in.close();
+	}
+
+	private class HuffTree 
+	{
+		HuffTree() 
+		{
+			val = 0;
+			weight = 0;
+			left = null;
+			right = null;
+			parent = null;
+		}
+
+		HuffTree(int value, int wei, HuffTree l, HuffTree r, HuffTree p) 
+		{
+			val = value;
+			weight = wei;
+			left = l;
+			right = r;
+			parent = p;
+		}
+
+		HuffTree parent;
+		HuffTree left;
+		HuffTree right;
+		int val;
+		int weight;
+	}
+	
+	public Huffman_5585() 
+	{
+		freq = new int[257];
+		table = new HuffTree[257];
+	}
+	
+	public static void main(String args[]) throws IOException
+	{
+		Huffman_5585 h = new Huffman_5585();
+		
+		if (args.length == 2) 
+		{			
+			String outFile = args[1] + ".huf";
+			if (args[0].equals("hdec")) 
+			{
+				System.out.println("Decoding...");
+				h.decode(args[1]);
+			} 
+			else if (args[0].equals("henc")) 
+			{
+				System.out.println("Encoding...");
+				h.encode(args[1], outFile);
+			} 
+			else 
+			{
+				System.out.println("Error with parameters, command should be of form: Huffman_5585.jar henc/hdec inFile");
+				return;
+			}
+			
+			System.out.println("Process Complete!");
+		} 
+		else
+			System.out.println("Incorrect number of parameters, command should be of form: Huffman_5585.jar henc/hdec inFile");
+	}
+}
